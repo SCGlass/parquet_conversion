@@ -1,6 +1,4 @@
-
 pandas
 numpy
-ipykernel
-matplotlib
-scipy
+boto3
+pyarrow
