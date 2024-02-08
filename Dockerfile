@@ -1,9 +1,6 @@
 # python3.11 lambda base image. 
 FROM public.ecr.aws/lambda/python:3.11
 
-# Set working directory
-WORKDIR /app
-
 # copy requirements.txt to container root directory
 COPY requirements.txt ./
 

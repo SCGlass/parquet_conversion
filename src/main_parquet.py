@@ -128,4 +128,23 @@ def upload_file(parquet_file, bucket_name):
 
 
 def process_lambda(event, context):
-    return {"statusCode": 200, "body": "Hello World"}
+    
+    # Extracting necessary info from the event
+    bucket_name = event["Records"][0]["s3"]["bucket"]["name"]
+    file_key = event["Records"][0]["s3"]["object"]["key"]
+
+    print(f"Function Name: {context.function_name}")
+    print(f"Function Version: {context.function_version}")
+    print(f"AWS Request ID: {context.aws_request_id}")
+
+    #Import CSV file from S3
+    df = import_csv(bucket_name, file_key)
+    
+    # Clean the Dataframe
+    cleaned_parquet_file = CsvCleaner.clean_file(df)
+    
+    # Upload cleaned file to S3
+    upload_file(cleaned_parquet_file, bucket_name)
+
+    remaining_time_ms = context.get_remaining_time_in_millis()
+    print(f"Remaining Time (ms): {remaining_time_ms}")
