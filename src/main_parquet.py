@@ -137,6 +137,8 @@ def process_lambda(event, context):
     print(f"Function Version: {context.function_version}")
     print(f"AWS Request ID: {context.aws_request_id}")
 
+    destination_bucket_name = "new-parquet-files"
+
     #Import CSV file from S3
     df = import_csv(bucket_name, file_key)
     
@@ -144,7 +146,7 @@ def process_lambda(event, context):
     cleaned_parquet_file = CsvCleaner.clean_file(df)
     
     # Upload cleaned file to S3
-    upload_file(cleaned_parquet_file, bucket_name)
+    upload_file(cleaned_parquet_file, destination_bucket_name)
 
     remaining_time_ms = context.get_remaining_time_in_millis()
     print(f"Remaining Time (ms): {remaining_time_ms}")
