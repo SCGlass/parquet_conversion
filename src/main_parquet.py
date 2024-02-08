@@ -1,6 +1,24 @@
 import boto3
 import pandas as pd
+import os
 
+
+def import_csv(bucket_name, file_key):
+    s3 = boto3.client('s3', 
+                    aws_access_key_id= os.getenv("AWS_ACCESS_KEY_ID"), 
+                    aws_secret_access_key= os.getenv("AWS_SECRET_ACCESS_KEY"), 
+                    region_name= os.getenv("AWS_REGION_NAME"))
+
+    # Read CSV file from S3 into a Pandas DataFrame
+    try:
+        # Use 's3.get_object' to get the object and 'pd.read_csv' to read it into a DataFrame
+        obj = s3.get_object(Bucket=bucket_name, Key=file_key)
+        df = pd.read_csv(obj['Body'])
+        
+    except Exception as e:
+        print(f"Error: {e}")
+
+    return df
 
 
 
@@ -10,8 +28,7 @@ class CsvCleaner:
         # convert the column to numeric with any errors(for example strings or letter) to NaN
         df[col_name] = pd.to_numeric(df[col_name], errors="coerce")
         
-        # Interpolate NaN values in the timestamp column
-        df[col_name] = df[col_name].interpolate()
+        df.dropna(subset=[col_name], inplace=True)
 
         # Calculate the initial number of rows
         initial_rows = df.shape[0]
@@ -39,12 +56,12 @@ class CsvCleaner:
         # Calculate the initial number of rows
         initial_rows = df.shape[0]
 
-        df = df[(df[col_name] >= low) & (df[col_name] <= high)]
+        df.loc[~df[col_name].between(low, high), col_name] = float('nan')
 
         # Calculate the number of rows removed
         rows_removed = initial_rows - df.shape[0]
 
-        df[col_name] = df[col_name].interpolate()
+        #df[col_name] = df[col_name].interpolate()
 
         return df, rows_removed
     
@@ -91,5 +108,22 @@ class CsvCleaner:
         print(f"Total rows removed: {total_rows_removed}")
 
         return cleaned_parquet_file
+    
+
+def upload_file(parquet_file, bucket_name):
+
+    s3_resource = boto3.resource(
+        "s3",
+        region_name = os.getenv("AWS_REGION_NAME"),
+        aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY"))
+
+    try:
+        s3_resource.Bucket(bucket_name).upload_file(
+            Filename = parquet_file,
+            Key = os.path.basename(parquet_file))
+    
+    except Exception as e:
+        print(f"Error: {e}")
 
 
