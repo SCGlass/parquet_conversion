@@ -127,3 +127,5 @@ def upload_file(parquet_file, bucket_name):
         print(f"Error: {e}")
 
 
+def process_lambda(event, context):
+    return {"statusCode": 200, "body": "Hello World"}
