@@ -4,12 +4,20 @@ import os
 import traceback
 
 
-def import_csv(bucket_name, file_key):
-    s3 = boto3.client('s3', 
-                    #aws_access_key_id= os.getenv("AWS_ACCESS_KEY_ID"), 
-                    #aws_secret_access_key= os.getenv("AWS_SECRET_ACCESS_KEY"), 
-                    #region_name= os.getenv("AWS_REGION_NAME"))
-    )
+def import_csv(bucket_name:str, file_key:str) -> pd.DataFrame:
+    """
+    Imports a CSV file from an S3 bucket into a Pandas DataFrame.
+
+    Args:
+        bucket_name (str): The name of the S3 bucket.
+        file_key (str): The key of the file in the S3 bucket.
+
+    Returns:
+        pd.DataFrame: A Pandas DataFrame containing the data from the CSV file,
+        or None if an error occurred during the import process.
+    """
+    
+    s3 = boto3.client('s3')
 
     # Read CSV file from S3 into a Pandas DataFrame
     try:
@@ -27,7 +35,21 @@ def import_csv(bucket_name, file_key):
 
 class CsvCleaner:
     @staticmethod
-    def timestamp_clean(df, col_name):
+    def timestamp_clean(df:pd.DataFrame, col_name:str) -> tuple[pd.DataFrame,int]:
+        """
+        Cleans the DataFrame by converting the specified column to numeric, 
+        filtering out rows with invalid timestamps, converting timestamps to datetime, 
+        sorting by timestamp, and returning the cleaned DataFrame along with 
+        the number of rows removed.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to be cleaned.
+            col_name (str): The name of the column containing timestamps.
+
+        Returns:
+            tuple[pd.DataFrame, int]: A tuple containing the cleaned DataFrame 
+            and the number of rows removed.
+        """
         # convert the column to numeric with any errors(for example strings or letter) to NaN
         df[col_name] = pd.to_numeric(df[col_name], errors="coerce")
         
@@ -51,8 +73,23 @@ class CsvCleaner:
         return df, rows_removed
     
     @staticmethod
-    def clean_columns(df, col_name, low, high):
-    
+    def clean_columns(df: pd.DataFrame, col_name: str, low: float, high: float) -> tuple[pd.DataFrame, int]:
+        """
+        Cleans the specified column in the DataFrame by converting it to numeric, 
+        filtering out values that are not within the specified range, 
+        and returning the cleaned DataFrame along with the number of rows removed.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to be cleaned.
+            col_name (str): The name of the column to be cleaned.
+            low (float): The lower bound of the acceptable range.
+            high (float): The upper bound of the acceptable range.
+
+        Returns:
+            tuple[pd.DataFrame, int]: A tuple containing the cleaned DataFrame 
+            and the number of rows removed.
+        """
+
         # Convert column to numeric, making errors to Nan instead
         df[col_name] = pd.to_numeric(df[col_name], errors="coerce")
 
@@ -69,7 +106,19 @@ class CsvCleaner:
         return df, rows_removed
     
     @staticmethod
-    def clean_file(df, file_key):
+    def clean_file(df: pd.DataFrame, file_key: str) ->str:
+        """
+        Cleans the DataFrame by applying specific cleaning operations based on column names,
+        saves the cleaned DataFrame as a Parquet file, and returns the path to the cleaned Parquet file.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to be cleaned.
+            file_key (str): The key of the file.
+
+        Returns:
+            str: The path to the cleaned Parquet file.
+        """
+        
         total_rows_removed = 0
 
         # Clean the DataFrame
@@ -112,14 +161,18 @@ class CsvCleaner:
         return cleaned_parquet_file
     
 
-def upload_file(parquet_file, bucket_name):
+def upload_file(parquet_file: str, bucket_name: str) -> None:
+    """
+    Uploads a Parquet file to an S3 bucket.
 
-    s3_resource = boto3.resource(
-        "s3",
-        #region_name = os.getenv("AWS_REGION_NAME"),
-        #aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID"),
-        #aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-        )
+    Args:
+        parquet_file (str): The path to the Parquet file.
+        bucket_name (str): The name of the S3 bucket.
+
+    Returns:
+        None
+    """
+    s3_resource = boto3.resource("s3")
 
     try:
         filename = os.path.basename(parquet_file)
@@ -135,7 +188,16 @@ def upload_file(parquet_file, bucket_name):
 
 
 def process_lambda(event, context):
-    
+    """
+    Processes an event triggered Lambda function.
+
+    Args:
+        event (dict): The event that triggered the function.
+        context (LambdaContext): The Lambda execution context.
+
+    Returns:
+        None
+    """
     # Extracting necessary info from the event
     bucket_name = event['Records'][0]['s3']['bucket']['name']
     file_key = event['Records'][0]['s3']['object']['key']
