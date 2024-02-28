@@ -2,7 +2,7 @@ import boto3
 import pandas as pd
 import os
 import traceback
-import pyarrow.parquet as pq
+import pyarrow
 
 
 def import_csv(bucket_name:str, file_key:str) -> pd.DataFrame:
@@ -153,19 +153,22 @@ class CsvCleaner:
                 total_rows_removed += rows_removed
 
         # Save the cleaned DataFrame as a partitinoed Parquet file
-        vessel_name = file_key.split('_')[0] # This is just a test so takes first part of the file, can change this to take in regex
+        vessel_name = file_key.split('_')[0] # This is just a test so takes first part of the file, can change this to take in regex and use pathlib
 
         # Partition by timestamp and vessel name
         df["date"] = df["Timestamp"].dt.date
         df["vessel_name"] = vessel_name
 
         # Define the partition keys
-        partition_cols = ["date", "veseel_name"]
+        partition_cols = ["date", "vessel_name"]
 
         # Save as partitioned Parquet file
         cleaned_parquet_file = f"tmp/{file_key}.parquet"
-        table = pq.Table.from_pandas(df)
-        pq.write_to_dataset(table, root_path=cleaned_parquet_file, partition_cols=partition_cols)
+        table = pyarrow.Table.from_pandas(df)
+        
+        writer = pyarrow.ParquetWriter(cleaned_parquet_file, table.schema, partition_cols=partition_cols)
+        writer.write_table(table)
+        writer.close()
 
         print(f"Total rows removed: {total_rows_removed}")
 

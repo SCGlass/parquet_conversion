@@ -4,7 +4,7 @@ FROM public.ecr.aws/lambda/python:3.11
 # copy requirements.txt to container root directory
 COPY requirements.txt ./
 
-COPY src/.env ./
+#COPY src/.env ./
 
 # installing dependencies from the requirements under the root directory
 RUN pip install -r requirements.txt
