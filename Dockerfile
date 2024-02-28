@@ -10,7 +10,7 @@ COPY src/.env ./
 RUN pip install -r requirements.txt
 
 # Copy function script to container
-COPY src/main_parquet.py ./
+COPY src/main_parquet_part.py ./
 
 # setting the CMD to your handler file_name.function_name
-CMD ["main_parquet.process_lambda" ]
+CMD ["main_parquet_part.process_lambda" ]

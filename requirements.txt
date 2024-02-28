@@ -4,4 +4,4 @@ pyarrow
 
 ipykernel
 
-pyspark
+pyarrow
