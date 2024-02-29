@@ -166,7 +166,7 @@ class CsvCleaner:
         cleaned_parquet_file = f"tmp/{file_key}.parquet"
         table = pyarrow.Table.from_pandas(df)
         
-        writer = pyarrow.ParquetWriter(cleaned_parquet_file, table.schema, partition_cols=partition_cols)
+        writer = pyarrow.write_table(cleaned_parquet_file, table.schema, partition_cols=partition_cols)
         writer.write_table(table)
         writer.close()
 
