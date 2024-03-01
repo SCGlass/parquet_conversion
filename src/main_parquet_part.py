@@ -181,24 +181,28 @@ class CsvCleaner:
         vessel_name = file_key.split('_')[0] # use path lib here for realdata
         file_key_without_extension = file_key.replace('.csv', '')
 
-        # Partition by timestamp and vessel name
+        # Partition by timestamp
         df["year"] = df["Timestamp"].dt.year.astype(str)
         df["month"] = df["Timestamp"].dt.month.astype(str).str.zfill(2)
         df["day"] = df["Timestamp"].dt.day.astype(str).str.zfill(2)
-        df["vessel"] = vessel_name
+        
 
         # Define the partition keys
         partition_cols = ["year", "month", "day"]
 
+        # Create a copy of the DataFrame without the partition columns
+        
+
         # Iterate over each partition and save corresponding Parquet file
         for _, partition in df.groupby(partition_cols):
-            partition_path = "/".join(f"{col}={partition[col].iloc[0]}" for col in partition_cols)
             
+            partition_path = "/".join(f"{col}={partition[col].iloc[0]}" for col in partition_cols)
+            partition_df = df.drop(columns=partition_cols, inplace=True)
             parquet_file_name = f"{vessel_name}/{partition_path}/{file_key_without_extension}.parquet"
             
             # Write Parquet file to S3
             parquet_buffer = pa.BufferOutputStream()
-            pq.write_table(pa.Table.from_pandas(partition), parquet_buffer)
+            pq.write_table(pa.Table.from_pandas(partition_df), parquet_buffer)
             parquet_bytes = parquet_buffer.getvalue().to_pybytes()
             
             s3_resource = boto3.resource("s3")
