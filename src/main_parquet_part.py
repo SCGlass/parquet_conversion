@@ -1,8 +1,9 @@
 import boto3
 import pandas as pd
-import os
 import traceback
-import pyarrow
+import pyarrow.parquet as pq
+import pyarrow as pa
+from pathlib import Path
 
 
 def import_csv(bucket_name:str, file_key:str) -> pd.DataFrame:
@@ -107,7 +108,7 @@ class CsvCleaner:
         return df, rows_removed
     
     @staticmethod
-    def clean_file(df: pd.DataFrame, file_key: str) ->str:
+    def clean_file(df: pd.DataFrame, file_key: str, bucket_name:str) ->str:
         """
         Cleans the DataFrame by applying specific cleaning operations based on column names,
         saves the cleaned DataFrame as a Parquet file, and returns the path to the cleaned Parquet file.
@@ -152,53 +153,63 @@ class CsvCleaner:
                 df,rows_removed = CsvCleaner.clean_columns(df.copy(), col, low, high)
                 total_rows_removed += rows_removed
 
-        # Save the cleaned DataFrame as a partitinoed Parquet file
-        vessel_name = file_key.split('_')[0] # This is just a test so takes first part of the file, can change this to take in regex and use pathlib
-
-        # Partition by timestamp and vessel name
-        df["date"] = df["Timestamp"].dt.date
-        df["vessel_name"] = vessel_name
-
-        # Define the partition keys
-        partition_cols = ["date", "vessel_name"]
-
-        # Save as partitioned Parquet file
-        cleaned_parquet_file = f"tmp/{file_key}.parquet"
-        table = pyarrow.Table.from_pandas(df)
+        # Resample the DataFrame
+        df.set_index('Timestamp', inplace=True)
+        df = df.resample('10s').mean()  # No fillna(0) here
+        df = df.reset_index()
         
-        writer = pyarrow.write_table(cleaned_parquet_file, table.schema, partition_cols=partition_cols)
-        writer.write_table(table)
-        writer.close()
+        # Save as partitioned Parquet file
+        parquet_file = CsvCleaner._partition_and_save(df, file_key, bucket_name)
 
         print(f"Total rows removed: {total_rows_removed}")
 
-        return cleaned_parquet_file
-        
-
-def upload_file(parquet_file: str, bucket_name: str) -> None:
-    """
-    Uploads a Parquet file to an S3 bucket.
-
-    Args:
-        parquet_file (str): The path to the Parquet file.
-        bucket_name (str): The name of the S3 bucket.
-
-    Returns:
-        None
-    """
-    s3_resource = boto3.resource("s3")
-
-    try:
-        filename = os.path.basename(parquet_file)
-        
-        s3_resource.Bucket(bucket_name).upload_file(
-            Filename = parquet_file,
-            Key = filename )
-        
-        print(f"Uploaded {filename} to {bucket_name}")
+        return parquet_file
     
-    except Exception as e:
-        print(f"Error: {e}")
+    @staticmethod
+    def _partition_and_save(df: pd.DataFrame, file_key: str, bucket_name: str) -> str:
+        """
+        Partitions and saves the cleaned DataFrame as a Parquet file.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to be saved.
+            file_key (str): The key of the file.
+
+        Returns:    
+            str: The path to the saved Parquet file.
+        """
+        # Extract vessel name from the file key
+        vessel_name = file_key.split('_')[0] # use path lib here for realdata
+        file_key_without_extension = file_key.replace('.csv', '')
+
+        # Partition by timestamp and vessel name
+        df["year"] = df["Timestamp"].dt.year.astype(str)
+        df["month"] = df["Timestamp"].dt.month.astype(str).str.zfill(2)
+        df["day"] = df["Timestamp"].dt.day.astype(str).str.zfill(2)
+        df["vessel"] = vessel_name
+
+        # Define the partition keys
+        partition_cols = ["year", "month", "day"]
+
+        # Iterate over each partition and save corresponding Parquet file
+        for _, partition in df.groupby(partition_cols):
+            partition_path = "/".join(f"{col}={partition[col].iloc[0]}" for col in partition_cols)
+            
+            parquet_file_name = f"{vessel_name}/{partition_path}/{file_key_without_extension}.parquet"
+            
+            # Write Parquet file to S3
+            parquet_buffer = pa.BufferOutputStream()
+            pq.write_table(pa.Table.from_pandas(partition), parquet_buffer)
+            parquet_bytes = parquet_buffer.getvalue().to_pybytes()
+            
+            s3_resource = boto3.resource("s3")
+            s3_object = s3_resource.Object(bucket_name, parquet_file_name)
+            s3_object.put(Body=parquet_bytes)
+
+            parquet_file_path = f"s3://{bucket_name}/{parquet_file_name}"
+            print(f"Parquet file saved at: {parquet_file_path}")
+
+        return parquet_file_path
+        
 
 
 def process_lambda(event, context):
@@ -229,12 +240,9 @@ def process_lambda(event, context):
     df= import_csv(bucket_name, file_key)
     
     # Clean the Dataframe
-    cleaned_parquet_file = CsvCleaner.clean_file(df, file_key)
-    
-    # Add AWS glue function here
-
-    # Upload cleaned file to S3
-    upload_file(cleaned_parquet_file, destination_bucket_name)
+    cleaned_parquet_file = CsvCleaner.clean_file(df, file_key, destination_bucket_name)
 
     remaining_time_ms = context.get_remaining_time_in_millis()
     print(f"Remaining Time (ms): {remaining_time_ms}")
+
+    return cleaned_parquet_file
