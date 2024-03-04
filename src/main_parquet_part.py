@@ -26,12 +26,13 @@ def import_csv(bucket_name:str, file_key:str) -> pd.DataFrame:
         # Use 's3.get_object' to get the object and 'pd.read_csv' to read it into a DataFrame
         obj = s3.get_object(Bucket=bucket_name, Key=file_key)
         df = pd.read_csv(obj['Body'])
+        return df
         
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error importing CSV file from S3: {e}")
     
-        print(f"{traceback.format_exc()=}")
-    return df
+        traceback.print_exc()
+        return None
 
 
 
@@ -103,8 +104,6 @@ class CsvCleaner:
         # Calculate the number of rows removed
         rows_removed = initial_rows - df.shape[0]
 
-        #df[col_name] = df[col_name].interpolate()
-
         return df, rows_removed
     
     @staticmethod
@@ -133,6 +132,7 @@ class CsvCleaner:
                 low = 0
                 high = 100
                 df, rows_removed = CsvCleaner.clean_columns(df.copy(), col, low, high)
+                df[col] = df[col].round(2)
                 total_rows_removed += rows_removed
             
             if "Longitude" in col:
@@ -151,6 +151,7 @@ class CsvCleaner:
                 low = 0
                 high = 100
                 df,rows_removed = CsvCleaner.clean_columns(df.copy(), col, low, high)
+                df[col] = df[col].round(2)
                 total_rows_removed += rows_removed
 
         # Resample the DataFrame
@@ -181,23 +182,24 @@ class CsvCleaner:
         vessel_name = file_key.split('_')[0] # use path lib here for realdata
         file_key_without_extension = file_key.replace('.csv', '')
 
+        df_copy = df.copy()
+
         # Partition by timestamp
-        df["year"] = df["Timestamp"].dt.year.astype(str)
-        df["month"] = df["Timestamp"].dt.month.astype(str).str.zfill(2)
-        df["day"] = df["Timestamp"].dt.day.astype(str).str.zfill(2)
+        df_copy["year"] = df["Timestamp"].dt.year.astype(str)
+        df_copy["month"] = df["Timestamp"].dt.month.astype(str).str.zfill(2)
+        df_copy["day"] = df["Timestamp"].dt.day.astype(str).str.zfill(2)
         
 
         # Define the partition keys
         partition_cols = ["year", "month", "day"]
 
-        # Create a copy of the DataFrame without the partition columns
+        partition_df = df_copy.drop(columns=partition_cols)
         
 
         # Iterate over each partition and save corresponding Parquet file
-        for _, partition in df.groupby(partition_cols):
+        for _, partition in df_copy.groupby(partition_cols):
             
             partition_path = "/".join(f"{col}={partition[col].iloc[0]}" for col in partition_cols)
-            partition_df = df.drop(columns=partition_cols, inplace=True)
             parquet_file_name = f"{vessel_name}/{partition_path}/{file_key_without_extension}.parquet"
             
             # Write Parquet file to S3
@@ -242,6 +244,10 @@ def process_lambda(event, context):
 
     #Import CSV file from S3
     df= import_csv(bucket_name, file_key)
+
+    if df is None:
+        print("CSV import failed. Exiting function")
+        return
     
     # Clean the Dataframe
     cleaned_parquet_file = CsvCleaner.clean_file(df, file_key, destination_bucket_name)
