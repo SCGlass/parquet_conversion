@@ -178,6 +178,8 @@ class CsvCleaner:
         Returns:    
             str: The path to the saved Parquet file.
         """
+
+        # use path lib with file key to get the vessel name
         # Extract vessel name from the file key
         vessel_name = file_key.split('_')[0] # use path lib here for realdata
         file_key_without_extension = file_key.replace('.csv', '')
@@ -200,7 +202,7 @@ class CsvCleaner:
         for _, partition in df_copy.groupby(partition_cols):
             
             partition_path = "/".join(f"{col}={partition[col].iloc[0]}" for col in partition_cols)
-            parquet_file_name = f"{vessel_name}/{partition_path}/{file_key_without_extension}.parquet"
+            parquet_file_name = f"{vessel_name}/{partition_path}/{file_key_without_extension}.parquet" # do this locally
             
             # Write Parquet file to S3
             parquet_buffer = pa.BufferOutputStream()
@@ -230,8 +232,11 @@ def process_lambda(event, context):
         None
     """
     # Extracting necessary info from the event
-    bucket_name = event['Records'][0]['s3']['bucket']['name']
-    file_key = event['Records'][0]['s3']['object']['key']
+    #bucket_name = event['Records'][0]['s3']['bucket']['name'] 
+    #file_key = event['Records'][0]['s3']['object']['key']
+
+    file_key = event
+    
 
     print(bucket_name)
     print(file_key)
@@ -240,7 +245,7 @@ def process_lambda(event, context):
     print(f"Function Version: {context.function_version}")
     print(f"AWS Request ID: {context.aws_request_id}")
 
-    destination_bucket_name = "new-parquet-files"
+    destination_bucket_name = "new-parquet-files" # Change to the actual bucket
 
     #Import CSV file from S3
     df= import_csv(bucket_name, file_key)

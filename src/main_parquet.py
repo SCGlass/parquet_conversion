@@ -199,7 +199,7 @@ def process_lambda(event, context):
         None
     """
     # Extracting necessary info from the event
-    bucket_name = event['Records'][0]['s3']['bucket']['name']
+    bucket_name = event['Records'][0]['s3']['bucket']['name'] 
     file_key = event['Records'][0]['s3']['object']['key']
 
     print(bucket_name)
