@@ -4,7 +4,7 @@ This is a project to create a pipeline using a Lambda process within Amazon Web 
 
 ## Dummy Data
 
-I begin the project by creating a dummy dataset that had noticeable errors within the data. This was good practice to create dummy data and to be able to create bad data that would be cleaned and converted within the data processing stage. The development of my dummy data frame can be found in the ```dummy_data/dummy_data.ipynb``` jupyter notebook.
+I began the project by creating a dummy dataset that had noticeable errors within the data. This was good practice to create dummy data and to be able to create bad data that would be cleaned and converted within the data processing stage. The development of my dummy data frame can be found in the ```dummy_data/dummy_data.ipynb``` jupyter notebook.
 
 Here is an example of the Dummy data before processing:
 
